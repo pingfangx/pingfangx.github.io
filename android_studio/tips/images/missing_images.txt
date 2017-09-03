@@ -1,0 +1,1 @@
+goto_symbol.gif -  Ctrl+Alt+Shift+N 功能的截图。

@@ -1,0 +1,12 @@
+.item {
+    position: absolute;
+}
+
+img {
+    width: 25vw;
+    height: 25vw;
+}
+
+div.row {
+    margin-top: 5px;
+}

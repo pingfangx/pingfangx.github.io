@@ -1,3 +1,6 @@
 _site/
 .sass-cache/
 .jekyll-metadata
+.idea/
+# 只是用来本地测试，线上直接用的地址
+resource/bootstrap*/

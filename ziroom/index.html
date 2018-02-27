@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no"/>
+    <style type="text/css">
+        body, html {
+            width: 100%;
+            height: 100%
+        }
+
+        #allmap {
+            width: 100%;
+            height: 100%
+        }
+
+    </style>
+    <script src="https://cdn.bootcss.com/jquery/2.2.4/jquery.min.js"></script>
+    <script src="lib/jszip-utils.min.js"></script>
+    <script src="https://cdn.bootcss.com/jszip/3.1.5/jszip.min.js"></script>
+    <script type="text/javascript"
+            src="https://api.map.baidu.com/api?v=2.0&ak=anRqcf8cFvpmbQYd8NCiA7ZNDjHewmor"></script>
+    <title>自如房源</title>
+</head>
+<body>
+<div id="allmap"></div>
+<a href="https://github.com/yrjyrj123/ziRoom"><img style="position: absolute; top: 0; right: 0; border: 0;"
+                                                   src="https://camo.githubusercontent.com/e7bbb0521b397edbd5fe43e7f760759336b5e05f/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f677265656e5f3030373230302e706e67"
+                                                   alt="Fork me on GitHub"
+                                                   data-canonical-src="https://s3.amazonaws.com/github/ribbons/forkme_right_green_007200.png"></a>
+
+</body>
+</html>
+<script type="text/javascript">
+
+    var rooms_cache = {};
+
+
+    var map = new BMap.Map("allmap");
+    map.centerAndZoom(new BMap.Point(116.461994, 39.967171), 13);
+    map.enableScrollWheelZoom(true);
+    var top_left_navigation = new BMap.NavigationControl();
+
+    map.addControl(top_left_navigation);
+
+    map.addEventListener("zoomend", redraw_rooms);
+    map.addEventListener("dragend", redraw_rooms);
+
+    function redraw_rooms() {
+        map.clearOverlays();
+        draw_rooms(rooms_cache["whole_rooms"], "整租", '#009966');
+        draw_rooms(rooms_cache["share_rooms"], "合租", '#cc3333');
+    }
+
+    function get_request() {
+        var search = location.search;
+        var request = {};
+        if (search.indexOf("?") != -1) {
+            search = search.substr(1);
+            var params = search.split("&");
+            for (var i = 0; i < params.length; i++) {
+                var key_value = params[i].split('=');
+                request[key_value[0]] = decodeURI(key_value[1]);
+            }
+        }
+        return request;
+
+    }
+
+    function filter_room(room) {
+        var request = get_request();
+        if (!request) {
+            return true;
+        }
+
+        //最小面积
+        var min_area = request['min_area'];
+        if (min_area) {
+            min_area = parseFloat(min_area);
+            var area = room['area_display'].toString();
+            area = area.replace('约', '');
+            if (area < min_area) {
+                return false;
+            }
+        }
+
+        //最高价格
+        var max_price = request['max_price'];
+        if (max_price) {
+            max_price = parseFloat(max_price);
+            if (room['sell_price'] > max_price) {
+                return false;
+            }
+        }
+
+        //朝向
+        var facing = request['facing'];
+        if (facing) {
+            if (room['facing'] != facing) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    function draw_rooms(rooms, room_type, color) {
+        if (!rooms) {
+            return
+        }
+        var points = [];
+        var bounds = map.getBounds();
+        var sw_point = bounds.getSouthWest();
+        var es_point = bounds.getNorthEast();
+        var label_count = 0;
+        var position_list = [];
+        for (var i = 0; i < rooms.length; i++) {
+            var item = rooms[i];
+            if (!filter_room(item)) {
+                continue
+            }
+            var lng = item['longitude'];
+            var lat = item['latitude'];
+            if (lng >= sw_point.lng && lng <= es_point.lng && lat >= sw_point.lat && lat <= es_point.lat) {
+                var point = new BMap.Point(lng, lat);
+                point = check_point(position_list, point);
+                point.room = item;
+                points.push(point);
+                if (label_count++ < 500) {
+                    var title = item['area_display'] + '平-' + item['sell_price'] + '-' + item['name'];
+                    var label = new BMap.Label(title, {position: point});
+                    label.url = item['url'];
+                    label.addEventListener("click", function (e) {
+                        var url = 'http:' + e.target.url;
+                        window.open(url);
+                    });
+                    map.addOverlay(label);
+                }
+            }
+        }
+
+        function check_point(point_list, point) {
+            var min = 0.0004;
+            for (var i = 0; i < point_list.length; i++) {
+                var t = point_list[i];
+                if (Math.abs(t.lng - point.lng) < min && Math.abs(t.lat - point.lat) < min) {
+                    point.lat -= min;
+                    //不跳出循环，继续比较
+                }
+            }
+            point_list.push(point);
+            return point;
+        }
+
+        var pointCollection = new BMap.PointCollection(points, {size: BMAP_POINT_SIZE_BIG, color: color});
+        pointCollection.addEventListener('click', function (e) {
+            var item = e.point.room;
+
+            room_status = item["room_status"];
+            if (room_status == "dzz") {
+                room_status = "待出租";
+            } else if (room_status == "tzpzz" || room_status == "zxpzz") {
+                room_status = "配置中";
+            } else if (room_status == "yxd") {
+                room_status = "已下订";
+            } else if (room_status == "ycz") {
+                room_status = "已出租";
+            }
+
+            var content = "<a href=\"http:" + item["url"] + "\" target='_blank'>" + item["name"] + "</a>";
+
+            var infoWindow = new BMap.InfoWindow(content, {
+                width: 250,
+                height: 80,
+                title: room_type + " : " + room_status
+            });
+            var point = new BMap.Point(e.point.lng, e.point.lat);
+
+            map.openInfoWindow(infoWindow, point);
+        });
+        map.addOverlay(pointCollection);
+    }
+
+    JSZipUtils.getBinaryContent('whole_rooms.zip', function (err, data) {
+        if (err) {
+            console.log(err);
+            return;
+        }
+        JSZip.loadAsync(data).then(function (zip) {
+            zip.file("whole_rooms.json").async("string").then(function (data) {
+                rooms_cache["whole_rooms"] = JSON.parse(data);
+                draw_rooms(rooms_cache["whole_rooms"], "整租", '#009966');
+            });
+        });
+    });
+    JSZipUtils.getBinaryContent('share_rooms.zip', function (err, data) {
+        if (err) {
+            console.log(err);
+            return;
+        }
+        JSZip.loadAsync(data).then(function (zip) {
+            zip.file("share_rooms.json").async("string").then(function (data) {
+                rooms_cache["share_rooms"] = JSON.parse(data);
+                draw_rooms(rooms_cache["share_rooms"], "合租", '#cc3333');
+            });
+        });
+    });
+
+</script>
+

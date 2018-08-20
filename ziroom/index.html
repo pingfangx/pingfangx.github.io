@@ -24,10 +24,11 @@
 </head>
 <body>
 <div id="allmap"></div>
-<a href="https://github.com/yrjyrj123/ziRoom"><img style="position: absolute; top: 0; right: 0; border: 0;"
-                                                   src="https://camo.githubusercontent.com/e7bbb0521b397edbd5fe43e7f760759336b5e05f/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f677265656e5f3030373230302e706e67"
-                                                   alt="Fork me on GitHub"
-                                                   data-canonical-src="https://s3.amazonaws.com/github/ribbons/forkme_right_green_007200.png"></a>
+<a href="https://github.com/pingfangx/ziroom_spider" target="_blank"><img
+        style="position: absolute; top: 0; right: 0; border: 0;"
+        src="https://camo.githubusercontent.com/e7bbb0521b397edbd5fe43e7f760759336b5e05f/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f677265656e5f3030373230302e706e67"
+        alt="Fork me on GitHub"
+        data-canonical-src="https://s3.amazonaws.com/github/ribbons/forkme_right_green_007200.png"></a>
 
 </body>
 </html>
@@ -96,8 +97,38 @@
         //朝向
         var facing = request['facing'];
         if (facing) {
-            if (room['facing'] != facing) {
+            if (room['facing'] !== facing) {
                 return false;
+            }
+        }
+
+        //合租
+        var whole = request['whole'];
+        if (whole) {
+            if (room['is_whole'] !== parseInt(whole)) {
+                return false;
+            }
+        }
+
+        //供暖
+        var heat = request['heat'];
+        if (heat) {
+            var supply_heat = room['supply_heat'];
+            if (heat === '1') {
+                //独立
+                if (supply_heat !== '2030001') {
+                    return false;
+                }
+            } else if (heat === '2') {
+                //集体
+                if (supply_heat !== '2030002') {
+                    return false;
+                }
+            } else if (heat === '5') {
+                //避挂炉
+                if (supply_heat === '2030005') {
+                    return false;
+                }
             }
         }
         return true;
@@ -186,6 +217,9 @@
             return;
         }
         JSZip.loadAsync(data).then(function (zip) {
+            zip.file("date.txt").async("string").then(function (data) {
+                document.title = "自如房源-" + data;
+            });
             zip.file("whole_rooms.json").async("string").then(function (data) {
                 rooms_cache["whole_rooms"] = JSON.parse(data);
                 draw_rooms(rooms_cache["whole_rooms"], "整租", '#009966');
@@ -198,6 +232,9 @@
             return;
         }
         JSZip.loadAsync(data).then(function (zip) {
+            zip.file("date.txt").async("string").then(function (data) {
+                document.title = "自如房源-" + data;
+            });
             zip.file("share_rooms.json").async("string").then(function (data) {
                 rooms_cache["share_rooms"] = JSON.parse(data);
                 draw_rooms(rooms_cache["share_rooms"], "合租", '#cc3333');
